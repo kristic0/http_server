@@ -1,23 +1,35 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <search.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <stdlib.h>
 #include <netinet/in.h>
 #include <string.h>
 
-int loadFile(char **response)
+int loadFile(char **response, char *fileToLoad)
 {
     char *header = "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: ";
     char fileLength[5]; // length of file
+    char pathToFile[50] = "./page";
 
-    FILE *file = fopen("./index.html", "r");
+    if (strcmp(fileToLoad, "/") == 0)
+    {
+        strcat(pathToFile, "/index.html");
+    }
+    else
+    {
+        strcat(pathToFile, fileToLoad);
+    }
+
+    FILE *file = fopen(pathToFile, "r");
     if (file == NULL)
     {
-        printf("file doesnt exist!");
-        return -1;
+        fprintf(stderr, "file doesnt exist!");
+        return 0;
     }
 
     char *fileToText = malloc(sizeof(*file));
+    *fileToText = '\0';
 
     char c = fgetc(file);
     while (c != EOF)
@@ -30,18 +42,18 @@ int loadFile(char **response)
 
     if ((*response = malloc(strlen(header) + strlen(fileLength) + strlen(fileToText) + 1)) != NULL)
     {
-        *response[0] = '\0'; // ensures the memory is an empty string
+        *response[0] = '\0';
         strcat(*response, header);
-        strcat(*response, fileLength); // index.html len
+        strcat(*response, fileLength);
         strcat(*response, fileToText); // index.html
     }
 
     free(fileToText);
 }
 
-int main(int argc, char const *argv[])
+int initializeServer(char const *PORT)
 {
-    const int PORT = 1337;
+    const int _PORT = atoi(PORT);
     int serverFd;
     int newSocket;
     long valread;
@@ -49,7 +61,7 @@ int main(int argc, char const *argv[])
     struct sockaddr_in address = {
         .sin_family = AF_INET,
         .sin_addr = INADDR_ANY,
-        .sin_port = htons(PORT),
+        .sin_port = htons(_PORT),
         .sin_zero = 0};
 
     int addrLen = sizeof(address);
@@ -57,44 +69,67 @@ int main(int argc, char const *argv[])
     // Creating socket file descriptor
     if ((serverFd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
     {
-        perror("In socket");
+        perror("Socket error");
         exit(EXIT_FAILURE);
     }
 
     if (bind(serverFd, (struct sockaddr *)&address, sizeof(address)) < 0)
     {
-        perror("In bind");
+        perror("Bind error");
         exit(EXIT_FAILURE);
     }
 
     if (listen(serverFd, 10) < 0)
     {
-        perror("In listen");
+        perror("Listen error");
         exit(EXIT_FAILURE);
     }
 
+    printf("\nOpen in browser: http://localhost:%d\n\n", _PORT);
+
     while (1)
     {
-        printf("\n+++++++ Waiting for new connection ++++++++\n\n");
         if ((newSocket = accept(serverFd, (struct sockaddr *)&address, (socklen_t *)&addrLen)) < 0)
         {
-            perror("In accept");
+            perror("Accept error");
             exit(EXIT_FAILURE);
         }
 
-        char *response;
-        loadFile(&response);
-
-        // printf("%s", response);
-
+        char fileToLoad[20] = {0};
         char buffer[30000] = {0};
         valread = read(newSocket, buffer, 30000);
-        printf("%s\n", buffer);
-        write(newSocket, response, strlen(response));
-        printf("------------------ Message sent -------------------\n");
+        //printf("%s\n", buffer);
+
+        for (int i = 4; buffer[i] != ' '; i++)
+        {
+            //fprintf(stderr, "%c", (char)c);
+            strncat(fileToLoad, &buffer[i], 1);
+        }
+
+        //fprintf(stderr, "%s", parsed);
+
+        char *response = NULL;
+        loadFile(&response, &fileToLoad);
+
+        if (response != NULL)
+            write(newSocket, response, strlen(response));
+
         close(newSocket);
 
-        free(response);
+        if (response != NULL)
+            free(response);
     }
+}
+
+int main(int argc, char const *argv[])
+{
+    if (!argv[1])
+    {
+        printf("Port missing");
+        return 0;
+    }
+
+    initializeServer(argv[1]);
+
     return 0;
 }
