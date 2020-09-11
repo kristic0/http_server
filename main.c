@@ -6,11 +6,48 @@
 #include <netinet/in.h>
 #include <string.h>
 
+char mime[3][20] = {
+    "text/html",
+    "text/css",
+    "text/javascript"};
+
+int checkMimeType(char *fileToLoad, char header[])
+{
+    char temp[50];
+    strcpy(temp, fileToLoad);
+    char *token = strtok(temp, ".");
+    token = strtok(NULL, "");
+
+    if (token == NULL)
+    {
+
+        strcat(header, mime[0]);
+        return 0;
+    }
+
+    if (strcmp(token, "html") == 0)
+    {
+        strcat(header, mime[0]);
+    }
+    else if (strcmp(token, "css") == 0)
+    {
+        strcat(header, mime[1]);
+    }
+    else if (strcmp(token, "js") == 0)
+    {
+        strcat(header, mime[2]);
+    }
+}
+
 int loadFile(char **response, char *fileToLoad)
 {
-    char *header = "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: ";
+    char header[100] = "HTTP/1.1 200 OK\nContent-Type: ";
     char fileLength[5]; // length of file
     char pathToFile[50] = "./page";
+
+    checkMimeType(fileToLoad, header);
+
+    strcat(header, "\nContent-Length: ");
 
     if (strcmp(fileToLoad, "/") == 0)
     {
@@ -20,6 +57,9 @@ int loadFile(char **response, char *fileToLoad)
     {
         strcat(pathToFile, fileToLoad);
     }
+
+    fprintf(stderr, "%s", header);
+    fprintf(stderr, "%s", pathToFile);
 
     FILE *file = fopen(pathToFile, "r");
     if (file == NULL)
@@ -106,7 +146,7 @@ int initializeServer(char const *PORT)
             strncat(fileToLoad, &buffer[i], 1);
         }
 
-        //fprintf(stderr, "%s", parsed);
+        fprintf(stderr, "%s\n\n", fileToLoad);
 
         char *response = NULL;
         loadFile(&response, &fileToLoad);
